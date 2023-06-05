@@ -170,6 +170,9 @@ import (
 	revenue "github.com/evmos/evmos/v12/x/revenue/v1"
 	revenuekeeper "github.com/evmos/evmos/v12/x/revenue/v1/keeper"
 	revenuetypes "github.com/evmos/evmos/v12/x/revenue/v1/types"
+	talkmodule "github.com/evmos/evmos/v12/x/talk"
+	talkmodulekeeper "github.com/evmos/evmos/v12/x/talk/keeper"
+	talkmoduletypes "github.com/evmos/evmos/v12/x/talk/types"
 	"github.com/evmos/evmos/v12/x/vesting"
 	vestingkeeper "github.com/evmos/evmos/v12/x/vesting/keeper"
 	vestingtypes "github.com/evmos/evmos/v12/x/vesting/types"
@@ -246,6 +249,7 @@ var (
 		claims.AppModuleBasic{},
 		recovery.AppModuleBasic{},
 		revenue.AppModuleBasic{},
+		talkmodule.AppModuleBasic{},
 	)
 
 	// module account permissions
@@ -328,6 +332,8 @@ type Evmos struct {
 	VestingKeeper    vestingkeeper.Keeper
 	RecoveryKeeper   *recoverykeeper.Keeper
 	RevenueKeeper    revenuekeeper.Keeper
+	ScopedTalkKeeper capabilitykeeper.ScopedKeeper
+	TalkKeeper       talkmodulekeeper.Keeper
 
 	// the module manager
 	mm *module.Manager
@@ -385,7 +391,7 @@ func NewEvmos(
 		// evmos keys
 		inflationtypes.StoreKey, erc20types.StoreKey, incentivestypes.StoreKey,
 		epochstypes.StoreKey, claimstypes.StoreKey, vestingtypes.StoreKey,
-		revenuetypes.StoreKey, recoverytypes.StoreKey,
+		revenuetypes.StoreKey, recoverytypes.StoreKey, talkmoduletypes.StoreKey,
 	)
 
 	// Add the EVM transient store key
@@ -578,6 +584,21 @@ func NewEvmos(
 		app.ClaimsKeeper,
 	)
 
+	scopedTalkKeeper := app.CapabilityKeeper.ScopeToModule(talkmoduletypes.ModuleName)
+	app.ScopedTalkKeeper = scopedTalkKeeper
+	app.TalkKeeper = *talkmodulekeeper.NewKeeper(
+		appCodec,
+		keys[talkmoduletypes.StoreKey],
+		keys[talkmoduletypes.MemStoreKey],
+		app.GetSubspace(talkmoduletypes.ModuleName),
+		app.IBCKeeper.ChannelKeeper,
+		&app.IBCKeeper.PortKeeper,
+		scopedTalkKeeper,
+	)
+	talkModule := talkmodule.NewAppModule(appCodec, app.TalkKeeper, app.AccountKeeper, app.BankKeeper)
+
+	talkIBCModule := talkmodule.NewIBCModule(app.TalkKeeper)
+
 	// NOTE: app.Erc20Keeper is already initialized elsewhere
 
 	// Set the ICS4 wrappers for custom module middlewares
@@ -631,6 +652,8 @@ func NewEvmos(
 	ibcRouter.
 		AddRoute(icahosttypes.SubModuleName, icaHostIBCModule).
 		AddRoute(ibctransfertypes.ModuleName, transferStack)
+
+	ibcRouter.AddRoute(talkmoduletypes.ModuleName, talkIBCModule)
 
 	app.IBCKeeper.SetRouter(ibcRouter)
 
@@ -691,6 +714,7 @@ func NewEvmos(
 			app.GetSubspace(recoverytypes.ModuleName)),
 		revenue.NewAppModule(app.RevenueKeeper, app.AccountKeeper,
 			app.GetSubspace(revenuetypes.ModuleName)),
+		talkModule,
 	)
 
 	// During begin block slashing happens after distr.BeginBlocker so that
@@ -729,6 +753,7 @@ func NewEvmos(
 		incentivestypes.ModuleName,
 		recoverytypes.ModuleName,
 		revenuetypes.ModuleName,
+		talkmoduletypes.ModuleName,
 	)
 
 	// NOTE: fee market module must go last in order to retrieve the block gas used.
@@ -763,6 +788,7 @@ func NewEvmos(
 		incentivestypes.ModuleName,
 		recoverytypes.ModuleName,
 		revenuetypes.ModuleName,
+		talkmoduletypes.ModuleName,
 	)
 
 	// NOTE: The genutils module must occur after staking so that pools are
@@ -804,6 +830,7 @@ func NewEvmos(
 		epochstypes.ModuleName,
 		recoverytypes.ModuleName,
 		revenuetypes.ModuleName,
+		talkmoduletypes.ModuleName,
 		// NOTE: crisis module must go at the end to check for invariants on each module
 		crisistypes.ModuleName,
 	)
@@ -1143,6 +1170,7 @@ func initParamsKeeper(
 	paramsKeeper.Subspace(incentivestypes.ModuleName)
 	paramsKeeper.Subspace(recoverytypes.ModuleName)
 	paramsKeeper.Subspace(revenuetypes.ModuleName)
+	paramsKeeper.Subspace(talkmoduletypes.ModuleName)
 	return paramsKeeper
 }
 

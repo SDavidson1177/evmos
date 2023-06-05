@@ -1,0 +1,83 @@
+[global]
+log_level = 'error'
+
+[mode]
+
+[mode.clients]
+enabled = true
+refresh = true
+misbehaviour = true
+
+[mode.connections]
+enabled = true
+
+[mode.channels]
+enabled = true
+
+[mode.packets]
+enabled = true
+clear_interval = 100
+clear_on_start = true
+tx_confirmation = true
+
+[telemetry]
+enabled = true
+host = '127.0.0.1'
+port = 3001
+
+[[chains]]
+id = 'evmos_9000-4'
+grpc_addr = 'http://127.0.0.1:9080'
+rpc_addr = 'http://localhost:26659'
+websocket_addr = 'ws://127.0.0.1:26659/websocket'
+rpc_timeout = '15s'
+account_prefix = 'evmos'
+key_name = 'devearth'
+address_type = { derivation = 'ethermint', proto_type = { pk_type = '/ethermint.crypto.v1.ethsecp256k1.PubKey' } }
+store_prefix = 'ibc'
+gas_price = { price = 1767812500, denom = 'aevmos' }
+gas_multiplier = 1.1
+max_gas = 3000000
+max_msg_num = 30
+max_tx_size = 2097152
+clock_drift = '5s'
+max_block_time = '30s'
+trusting_period = '14days'
+trust_threshold = { numerator = '2', denominator = '3' }
+
+# [chains.packet_filter]
+# policy = 'allow'
+# list = [
+#   ['ica*', '*'],
+#   ['transfer', 'channel-0'],
+# ]
+
+[[chains]]
+id = 'evmos_9000-5'
+grpc_addr = 'http://127.0.0.1:9090'
+rpc_addr = 'http://localhost:26657'
+websocket_addr = 'ws://127.0.0.1:26657/websocket'
+rpc_timeout = '15s'
+account_prefix = 'evmos'
+key_name = 'devmars'
+address_type = { derivation = 'ethermint', proto_type = { pk_type = '/ethermint.crypto.v1.ethsecp256k1.PubKey' } }
+store_prefix = 'ibc'
+gas_price = { price = 1767812500, denom = 'aevmos' }
+gas_multiplier = 1.1
+max_gas = 3000000
+max_msg_num = 30
+max_tx_size = 2097152
+clock_drift = '5s'
+max_block_time = '30s'
+trusting_period = '14days'
+trust_threshold = { numerator = '2', denominator = '3' }
+
+# [chains.packet_filter]
+# policy = 'allow'
+# list = [
+#   ['ica*', '*'],
+#   ['transfer', 'channel-0'],
+# ]
+
+# Derivation path: --hd-path "m/44'/60'/0'/0/0"
+
