@@ -119,6 +119,9 @@ endif
 
 BUILD_TARGETS := build install
 
+update:
+	cp $(BUILDDIR)/evmosd /home/sldavids/go/bin/evmosd
+
 build: BUILD_ARGS=-o $(BUILDDIR)/
 build-linux:
 	GOOS=linux GOARCH=amd64 LEDGER_ENABLED=false $(MAKE) build

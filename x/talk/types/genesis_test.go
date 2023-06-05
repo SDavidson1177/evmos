@@ -3,7 +3,7 @@ package types_test
 import (
 	"testing"
 
-	"github.com/sdavidson1177/lotery/x/talk/types"
+	"github.com/evmos/evmos/v12/x/talk/types"
 	"github.com/stretchr/testify/require"
 )
 

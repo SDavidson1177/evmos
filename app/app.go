@@ -596,7 +596,6 @@ func NewEvmos(
 		scopedTalkKeeper,
 	)
 	talkModule := talkmodule.NewAppModule(appCodec, app.TalkKeeper, app.AccountKeeper, app.BankKeeper)
-
 	talkIBCModule := talkmodule.NewIBCModule(app.TalkKeeper)
 
 	// NOTE: app.Erc20Keeper is already initialized elsewhere
