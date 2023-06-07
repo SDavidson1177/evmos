@@ -177,6 +177,10 @@ import (
 	vestingkeeper "github.com/evmos/evmos/v12/x/vesting/keeper"
 	vestingtypes "github.com/evmos/evmos/v12/x/vesting/types"
 
+	chatmodule "github.com/sdavidson1177/lotery/x/chat"
+	chatmodulekeeper "github.com/sdavidson1177/lotery/x/chat/keeper"
+	chatmoduletypes "github.com/sdavidson1177/lotery/x/chat/types"
+
 	// NOTE: override ICS20 keeper to support IBC transfers of ERC20 tokens
 	"github.com/evmos/evmos/v12/x/ibc/transfer"
 	transferkeeper "github.com/evmos/evmos/v12/x/ibc/transfer/keeper"
@@ -250,6 +254,7 @@ var (
 		recovery.AppModuleBasic{},
 		revenue.AppModuleBasic{},
 		talkmodule.AppModuleBasic{},
+		chatmodule.AppModuleBasic{},
 	)
 
 	// module account permissions
@@ -334,6 +339,8 @@ type Evmos struct {
 	RevenueKeeper    revenuekeeper.Keeper
 	ScopedTalkKeeper capabilitykeeper.ScopedKeeper
 	TalkKeeper       talkmodulekeeper.Keeper
+	ScopedChatKeeper capabilitykeeper.ScopedKeeper
+	ChatKeeper       chatmodulekeeper.Keeper
 
 	// the module manager
 	mm *module.Manager
@@ -392,6 +399,7 @@ func NewEvmos(
 		inflationtypes.StoreKey, erc20types.StoreKey, incentivestypes.StoreKey,
 		epochstypes.StoreKey, claimstypes.StoreKey, vestingtypes.StoreKey,
 		revenuetypes.StoreKey, recoverytypes.StoreKey, talkmoduletypes.StoreKey,
+		chatmoduletypes.StoreKey,
 	)
 
 	// Add the EVM transient store key
@@ -426,10 +434,6 @@ func NewEvmos(
 	scopedIBCKeeper := app.CapabilityKeeper.ScopeToModule(ibchost.ModuleName)
 	scopedTransferKeeper := app.CapabilityKeeper.ScopeToModule(ibctransfertypes.ModuleName)
 	scopedICAHostKeeper := app.CapabilityKeeper.ScopeToModule(icahosttypes.SubModuleName)
-
-	// Applications that wish to enforce statically created ScopedKeepers should call `Seal` after creating
-	// their scoped modules in `NewApp` with `ScopeToModule`
-	app.CapabilityKeeper.Seal()
 
 	// use custom Ethermint account for contracts
 	app.AccountKeeper = authkeeper.NewAccountKeeper(
@@ -598,6 +602,24 @@ func NewEvmos(
 	talkModule := talkmodule.NewAppModule(appCodec, app.TalkKeeper, app.AccountKeeper, app.BankKeeper)
 	talkIBCModule := talkmodule.NewIBCModule(app.TalkKeeper)
 
+	scopedChatKeeper := app.CapabilityKeeper.ScopeToModule(chatmoduletypes.ModuleName)
+	app.ScopedChatKeeper = scopedChatKeeper
+	app.ChatKeeper = *chatmodulekeeper.NewKeeper(
+		appCodec,
+		keys[chatmoduletypes.StoreKey],
+		keys[chatmoduletypes.MemStoreKey],
+		app.GetSubspace(chatmoduletypes.ModuleName),
+		app.IBCKeeper.ChannelKeeper,
+		&app.IBCKeeper.PortKeeper,
+		scopedChatKeeper,
+	)
+	chatModule := chatmodule.NewAppModule(appCodec, app.ChatKeeper, app.AccountKeeper, app.BankKeeper)
+	chatIBCModule := chatmodule.NewIBCModule(app.ChatKeeper)
+
+	// Applications that wish to enforce statically created ScopedKeepers should call `Seal` after creating
+	// their scoped modules in `NewApp` with `ScopeToModule`
+	app.CapabilityKeeper.Seal()
+
 	// NOTE: app.Erc20Keeper is already initialized elsewhere
 
 	// Set the ICS4 wrappers for custom module middlewares
@@ -652,6 +674,7 @@ func NewEvmos(
 		AddRoute(icahosttypes.SubModuleName, icaHostIBCModule).
 		AddRoute(ibctransfertypes.ModuleName, transferStack)
 
+	ibcRouter.AddRoute(chatmoduletypes.ModuleName, chatIBCModule)
 	ibcRouter.AddRoute(talkmoduletypes.ModuleName, talkIBCModule)
 
 	app.IBCKeeper.SetRouter(ibcRouter)
@@ -714,6 +737,7 @@ func NewEvmos(
 		revenue.NewAppModule(app.RevenueKeeper, app.AccountKeeper,
 			app.GetSubspace(revenuetypes.ModuleName)),
 		talkModule,
+		chatModule,
 	)
 
 	// During begin block slashing happens after distr.BeginBlocker so that
@@ -753,6 +777,7 @@ func NewEvmos(
 		recoverytypes.ModuleName,
 		revenuetypes.ModuleName,
 		talkmoduletypes.ModuleName,
+		chatmoduletypes.ModuleName,
 	)
 
 	// NOTE: fee market module must go last in order to retrieve the block gas used.
@@ -788,6 +813,7 @@ func NewEvmos(
 		recoverytypes.ModuleName,
 		revenuetypes.ModuleName,
 		talkmoduletypes.ModuleName,
+		chatmoduletypes.ModuleName,
 	)
 
 	// NOTE: The genutils module must occur after staking so that pools are
@@ -830,6 +856,7 @@ func NewEvmos(
 		recoverytypes.ModuleName,
 		revenuetypes.ModuleName,
 		talkmoduletypes.ModuleName,
+		chatmoduletypes.ModuleName,
 		// NOTE: crisis module must go at the end to check for invariants on each module
 		crisistypes.ModuleName,
 	)
@@ -1170,6 +1197,7 @@ func initParamsKeeper(
 	paramsKeeper.Subspace(recoverytypes.ModuleName)
 	paramsKeeper.Subspace(revenuetypes.ModuleName)
 	paramsKeeper.Subspace(talkmoduletypes.ModuleName)
+	paramsKeeper.Subspace(chatmoduletypes.ModuleName)
 	return paramsKeeper
 }
 
