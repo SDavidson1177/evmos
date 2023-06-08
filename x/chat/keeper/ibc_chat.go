@@ -40,7 +40,12 @@ func (k Keeper) OnRecvIbcChatPacket(ctx sdk.Context, packet channeltypes.Packet,
 		return packetAck, err
 	}
 
-	// TODO: packet reception logic
+	// Store the message in a list
+	hist_obj := types.History{
+		From:    data.Author,
+		Message: data.Message,
+	}
+	k.AppendHistory(ctx, hist_obj)
 
 	return packetAck, nil
 }

@@ -33,3 +33,8 @@ const (
 	SenderKey      = "Sender/value/"
 	SenderCountKey = "Sender/count/"
 )
+
+const (
+	HistoryKey      = "History/value/"
+	HistoryCountKey = "History/count/"
+)
