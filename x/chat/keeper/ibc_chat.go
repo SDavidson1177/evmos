@@ -30,7 +30,15 @@ func (k Keeper) TransmitIbcChatPacket(
 		return 0, sdkerrors.Wrapf(sdkerrors.ErrJSONMarshal, "cannot marshal the packet: %w", err)
 	}
 
-	return k.channelKeeper.SendPacket(ctx, channelCap, sourcePort, sourceChannel, timeoutHeight, timeoutTimestamp, packetBytes)
+	test_headers := []channeltypes.MultiHopHeader{}
+	test_headers = append(test_headers, channeltypes.MultiHopHeader{
+		SourcePort:         "port1",
+		SourceChannel:      "channel1",
+		DestinationPort:    "port1dst",
+		DestinationChannel: "channel1dst",
+	})
+
+	return k.channelKeeper.SendPacketMultiHop(ctx, channelCap, sourcePort, sourceChannel, timeoutHeight, timeoutTimestamp, packetBytes, test_headers)
 }
 
 // OnRecvIbcChatPacket processes packet reception

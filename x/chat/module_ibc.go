@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"encoding/json"
 	"fmt"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -141,9 +142,11 @@ func (im IBCModule) OnRecvPacket(
 	var ack channeltypes.Acknowledgement
 
 	// this line is used by starport scaffolding # oracle/packet/module/recv
+	var header_data channeltypes.MultiHopData
+	json.Unmarshal(modulePacket.GetData(), &header_data)
 
 	var modulePacketData types.ChatPacketData
-	if err := modulePacketData.Unmarshal(modulePacket.GetData()); err != nil {
+	if err := modulePacketData.Unmarshal(header_data.Data); err != nil {
 		return channeltypes.NewErrorAcknowledgement(sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet data: %s", err.Error()))
 	}
 
@@ -191,9 +194,11 @@ func (im IBCModule) OnAcknowledgementPacket(
 	}
 
 	// this line is used by starport scaffolding # oracle/packet/module/ack
+	var header_data channeltypes.MultiHopData
+	json.Unmarshal(modulePacket.GetData(), &header_data)
 
 	var modulePacketData types.ChatPacketData
-	if err := modulePacketData.Unmarshal(modulePacket.GetData()); err != nil {
+	if err := modulePacketData.Unmarshal(header_data.Data); err != nil {
 		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet data: %s", err.Error())
 	}
 

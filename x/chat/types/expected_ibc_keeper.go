@@ -11,6 +11,16 @@ import (
 type ChannelKeeper interface {
 	GetChannel(ctx sdk.Context, portID, channelID string) (channeltypes.Channel, bool)
 	GetNextSequenceSend(ctx sdk.Context, portID, channelID string) (uint64, bool)
+	SendPacketMultiHop(
+		ctx sdk.Context,
+		channelCap *capabilitytypes.Capability,
+		sourcePort string,
+		sourceChannel string,
+		timeoutHeight clienttypes.Height,
+		timeoutTimestamp uint64,
+		data []byte,
+		hops []channeltypes.MultiHopHeader,
+	) (uint64, error)
 	SendPacket(
 		ctx sdk.Context,
 		channelCap *capabilitytypes.Capability,

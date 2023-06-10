@@ -223,7 +223,7 @@ replace (
 	// use Cosmos-SDK fork to enable Ledger functionality
 	github.com/cosmos/cosmos-sdk => github.com/evmos/cosmos-sdk v0.46.10-ledger.1
 	// Custom ibc-go
-	github.com/cosmos/ibc-go/v6 => ../ibc-go
+	github.com/cosmos/ibc-go/v6 => github.com/sdavidson1177/ibc-interchain/v6 v6.0.2
 	// use Evmos geth fork
 	github.com/ethereum/go-ethereum => github.com/evmos/go-ethereum v1.10.26
 	// Security Advisory https://github.com/advisories/GHSA-h395-qcrw-5vmq
