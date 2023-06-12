@@ -9,6 +9,7 @@ import (
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
+	clienttypes "github.com/cosmos/ibc-go/v6/modules/core/02-client/types"
 	channeltypes "github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"
 	host "github.com/cosmos/ibc-go/v6/modules/core/24-host"
 	"github.com/cosmos/ibc-go/v6/modules/core/exported"
@@ -60,6 +61,13 @@ func NewKeeper(
 // ----------------------------------------------------------------------------
 // IBC Keeper Logic
 // ----------------------------------------------------------------------------
+
+func (k Keeper) ForwardData(ctx sdk.Context, portID, channelID string, timeoutHeight clienttypes.Height,
+	timeoutTimestamp uint64, data []byte, hop_count uint32, hops []channeltypes.MultiHopHeader) {
+	capName := host.ChannelCapabilityPath(portID, channelID)
+	chanCap, _ := k.scopedKeeper.GetCapability(ctx, capName)
+	k.channelKeeper.SendPacketMultiHop(ctx, chanCap, portID, channelID, timeoutHeight, timeoutTimestamp, data, hop_count, hops)
+}
 
 // ChanCloseInit defines a wrapper function for the channel Keeper's function.
 func (k Keeper) ChanCloseInit(ctx sdk.Context, portID, channelID string) error {

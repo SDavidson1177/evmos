@@ -21,7 +21,6 @@ jq '.app_state["crisis"]["constant_fee"]["denom"]="aevmos"' "$GENESIS" >"$TMP_GE
 jq '.app_state["gov"]["deposit_params"]["min_deposit"][0]["denom"]="aevmos"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 jq '.app_state["evm"]["params"]["evm_denom"]="aevmos"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 jq '.app_state["inflation"]["params"]["mint_denom"]="aevmos"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-
 jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 
 evmosd add-genesis-account $VALIDATOR  100000000000000000000000000stake,100000000000000000000000000aevmos --home "$HOMEDIR"
@@ -32,6 +31,8 @@ evmosd collect-gentxs --home "$HOMEDIR"
 evmosd validate-genesis --home "$HOMEDIR"
 
 # Hermes keys
+hermes --config config.toml keys delete --chain evmos_9000-5 --all
+hermes --config config.toml keys add --hd-path "m/44'/60'/0'/0/0" --chain evmos_9000-5 --key-file devmars-key-info
 hermes --config config.toml keys delete --chain evmos_9000-5 --all
 hermes --config config.toml keys add --hd-path "m/44'/60'/0'/0/0" --chain evmos_9000-5 --key-file devmars-key-info
 

@@ -7,6 +7,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
+	clienttypes "github.com/cosmos/ibc-go/v6/modules/core/02-client/types"
 	channeltypes "github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"
 	porttypes "github.com/cosmos/ibc-go/v6/modules/core/05-port/types"
 	host "github.com/cosmos/ibc-go/v6/modules/core/24-host"
@@ -145,6 +146,18 @@ func (im IBCModule) OnRecvPacket(
 	var header_data channeltypes.MultiHopData
 	json.Unmarshal(modulePacket.GetData(), &header_data)
 
+	// If there are more nodes blockchains along the path, forward the packet
+	// to those blockchains
+	// For now, just check hop count
+	process := true
+	if header_data.Hops < uint32(len(header_data.Header)) {
+		// forward to next chain
+		header_data.Hops++
+		im.keeper.ForwardData(ctx, header_data.Header[header_data.Hops-1].SourcePort, header_data.Header[header_data.Hops-1].SourceChannel,
+			clienttypes.Height(modulePacket.TimeoutHeight), modulePacket.GetTimeoutTimestamp(), header_data.Data, header_data.Hops, header_data.Header)
+		process = false
+	}
+
 	var modulePacketData types.ChatPacketData
 	if err := modulePacketData.Unmarshal(header_data.Data); err != nil {
 		return channeltypes.NewErrorAcknowledgement(sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet data: %s", err.Error()))
@@ -153,7 +166,13 @@ func (im IBCModule) OnRecvPacket(
 	// Dispatch packet
 	switch packet := modulePacketData.Packet.(type) {
 	case *types.ChatPacketData_IbcChatPacket:
-		packetAck, err := im.keeper.OnRecvIbcChatPacket(ctx, modulePacket, *packet.IbcChatPacket)
+		packetAck := types.IbcChatPacketAck{}
+		var err error
+		err = nil
+		if process {
+			packetAck, err = im.keeper.OnRecvIbcChatPacket(ctx, modulePacket, *packet.IbcChatPacket)
+		}
+
 		if err != nil {
 			ack = channeltypes.NewErrorAcknowledgement(err)
 		} else {
@@ -201,6 +220,9 @@ func (im IBCModule) OnAcknowledgementPacket(
 	if err := modulePacketData.Unmarshal(header_data.Data); err != nil {
 		return sdkerrors.Wrapf(sdkerrors.ErrUnknownRequest, "cannot unmarshal packet data: %s", err.Error())
 	}
+
+	// Reset packet data
+	modulePacket.SetData(header_data.Data)
 
 	var eventType string
 

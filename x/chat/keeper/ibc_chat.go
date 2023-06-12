@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"errors"
+	"fmt"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -32,13 +33,15 @@ func (k Keeper) TransmitIbcChatPacket(
 
 	test_headers := []channeltypes.MultiHopHeader{}
 	test_headers = append(test_headers, channeltypes.MultiHopHeader{
-		SourcePort:         "port1",
-		SourceChannel:      "channel1",
-		DestinationPort:    "port1dst",
-		DestinationChannel: "channel1dst",
+		SourcePort:         "chat",
+		SourceChannel:      "channel-0",
+		DestinationPort:    "chat",
+		DestinationChannel: "channel-0",
 	})
 
-	return k.channelKeeper.SendPacketMultiHop(ctx, channelCap, sourcePort, sourceChannel, timeoutHeight, timeoutTimestamp, packetBytes, test_headers)
+	fmt.Println("HERE custom send")
+
+	return k.channelKeeper.SendPacketMultiHop(ctx, channelCap, sourcePort, sourceChannel, timeoutHeight, timeoutTimestamp, packetBytes, 0, test_headers)
 }
 
 // OnRecvIbcChatPacket processes packet reception

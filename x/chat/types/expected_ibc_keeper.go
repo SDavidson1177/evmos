@@ -19,6 +19,7 @@ type ChannelKeeper interface {
 		timeoutHeight clienttypes.Height,
 		timeoutTimestamp uint64,
 		data []byte,
+		hop_count uint32,
 		hops []channeltypes.MultiHopHeader,
 	) (uint64, error)
 	SendPacket(

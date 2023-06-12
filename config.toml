@@ -72,6 +72,26 @@ max_block_time = '30s'
 trusting_period = '14days'
 trust_threshold = { numerator = '2', denominator = '3' }
 
+[[chains]]
+id = 'evmos_9000-6'
+grpc_addr = 'http://127.0.0.1:9190'
+rpc_addr = 'http://localhost:26757'
+websocket_addr = 'ws://127.0.0.1:26757/websocket'
+rpc_timeout = '15s'
+account_prefix = 'evmos'
+key_name = 'devmoon'
+address_type = { derivation = 'ethermint', proto_type = { pk_type = '/ethermint.crypto.v1.ethsecp256k1.PubKey' } }
+store_prefix = 'ibc'
+gas_price = { price = 1767812500, denom = 'aevmos' }
+gas_multiplier = 1.1
+max_gas = 3000000
+max_msg_num = 30
+max_tx_size = 2097152
+clock_drift = '5s'
+max_block_time = '30s'
+trusting_period = '14days'
+trust_threshold = { numerator = '2', denominator = '3' }
+
 # [chains.packet_filter]
 # policy = 'allow'
 # list = [
