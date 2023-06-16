@@ -33,7 +33,7 @@ evmosd validate-genesis --home "$HOMEDIR"
 # Hermes keys
 hermes --config config.toml keys delete --chain evmos_9000-5 --all
 hermes --config config.toml keys add --hd-path "m/44'/60'/0'/0/0" --chain evmos_9000-5 --key-file devmars-key-info
-hermes --config config.toml keys delete --chain evmos_9000-5 --all
-hermes --config config.toml keys add --hd-path "m/44'/60'/0'/0/0" --chain evmos_9000-5 --key-file devmars-key-info
+# hermes --config config.toml keys delete --chain evmos_9000-5 --all
+# hermes --config config.toml keys add --hd-path "m/44'/60'/0'/0/0" --chain evmos_9000-5 --key-file devmars-key-info
 
 evmosd start --json-rpc.enable --home "$HOMEDIR"

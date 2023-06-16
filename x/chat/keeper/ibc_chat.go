@@ -34,9 +34,9 @@ func (k Keeper) TransmitIbcChatPacket(
 	test_headers := []channeltypes.MultiHopHeader{}
 	test_headers = append(test_headers, channeltypes.MultiHopHeader{
 		SourcePort:         "chat",
-		SourceChannel:      "channel-0",
+		SourceChannel:      "channel-3",
 		DestinationPort:    "chat",
-		DestinationChannel: "channel-0",
+		DestinationChannel: "channel-3",
 	})
 
 	fmt.Println("HERE custom send")
