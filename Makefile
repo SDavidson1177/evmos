@@ -487,8 +487,8 @@ proto-download-deps:
 ###############################################################################
 
 # Build image for a local testnet
-localnet-build:
-	@$(MAKE) -C networks/local
+localnet-build: clean all update
+	echo "built"
 
 # Start a 4-node testnet locally
 localnet-start: localnet-stop localnet-build
