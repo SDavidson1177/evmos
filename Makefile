@@ -119,8 +119,20 @@ endif
 
 BUILD_TARGETS := build install
 
+refresh:
+	rm -rf $(HOME)/.evmoschain0
+	rm -rf $(HOME)/.evmoschain1
+	./simple_node.sh 0
+	./simple_node.sh 1
+
 update:
 	cp $(BUILDDIR)/evmosd /home/sldavids/go/bin/evmosd
+
+custom: refresh
+	rm -rf evmoschain0 && rm -rf evmoschain1
+	cp -r $(HOME)/.evmoschain0/ . && mv .evmoschain0 evmoschain0
+	cp -r $(HOME)/.evmoschain1/ . && mv .evmoschain1 evmoschain1
+	docker compose up -d --build
 
 build: BUILD_ARGS=-o $(BUILDDIR)/
 build-linux:
