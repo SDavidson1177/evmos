@@ -4,6 +4,8 @@ RUN apt-get update -y
 RUN apt-get install git -y
 RUN apt-get update -y
 RUN apt-get install ca-certificates jq -y
+RUN apt-get install iproute2 -y
+RUN apt-get install iputils-ping -y
 
 COPY ./build/evmosd .
 
