@@ -4,7 +4,8 @@
 HELP="Usage: ./deploy.sh [COMMAND]\n
 \tCommands:\n
 \t\tstart \t Start a blockchain\n
-\t\tstop \t Stop a blockchain"
+\t\tstop \t Stop a blockchain\n
+\t\trelayer \t Start a relayer"
 
 # Make sure a command is given
 if [ $# -lt 1 ]; then
@@ -14,6 +15,8 @@ if [ $# -lt 1 ]; then
 fi
 
 CMD=${1}
+
+DERIVATION_PATH="m/44'/60'/0'/0/0"
 
 if [ $CMD = "start" ]; then
     # Usage
@@ -47,10 +50,31 @@ if [ $CMD = "start" ]; then
     MONIKER=${2}
     CHAINID_NUM="${4}"
     CHAINID="evmos_9000-${CHAINID_NUM}"
-    HOMEDIR_PREFIX="$HOME/.${MONIKER}"
+    HOMEDIR_PREFIX="./build/.${MONIKER}"
     VALIDATOR_PREFIX="dev${MONIKER}"
     MEMORY="./.memory-${MONIKER}"
     NUM_NODES=${3}
+
+    # Template configuration for hermes
+    HERMES_CHAIN_CONFIG="[[chains]]\n
+        id = 'evmos_9000-6'\n
+        grpc_addr = 'http://127.0.0.1:9190'\n
+        rpc_addr = 'http://localhost:26757'\n
+        websocket_addr = 'ws://127.0.0.1:26757/websocket'\n
+        rpc_timeout = '15s'\n
+        account_prefix = 'evmos'\n
+        key_name = 'devmoon'\n
+        address_type = { derivation = 'ethermint', proto_type = { pk_type = '/ethermint.crypto.v1.ethsecp256k1.PubKey' } }\n
+        store_prefix = 'ibc'\n
+        gas_price = { price = 1767812500, denom = 'aevmos' }\n
+        gas_multiplier = 1.1\n
+        max_gas = 3000000\n
+        max_msg_num = 30\n
+        max_tx_size = 2097152\n
+        clock_drift = '5s'\n
+        max_block_time = '30s'\n
+        trusting_period = '14days'\n
+        trust_threshold = { numerator = '2', denominator = '3' }\n"
 
     # Create a validator for each of the nodes
     VALIDATORS=()
@@ -73,19 +97,29 @@ if [ $CMD = "start" ]; then
 
     # Create new info for each node
     counter=0
+    rm -rf "./build/hermes/hermes-${CHAINID_NUM}"
+    mkdir "./build/hermes/hermes-${CHAINID_NUM}" # Directory that will store key files for this chain (for hermes relayer)
     while [ $counter -lt $NUM_NODES ]
     do
         # Remove old data
         rm -rf "${HOMEDIRS[((${counter}))]}"
 
-        evmosd config chain-id $CHAINID --home "${HOMEDIRS[((${counter}))]}"
-        evmosd config node $NODEADDR --home "${HOMEDIRS[((${counter}))]}"
-        evmosd keys add "${VALIDATORS[((${counter}))]}" --output json --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd config chain-id $CHAINID --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd config node $NODEADDR --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd keys add "${VALIDATORS[((${counter}))]}" --output json --home "${HOMEDIRS[((${counter}))]}" > "./build/hermes/hermes-${CHAINID_NUM}/rkey.json"
 
         # The argument $MONIKER is the custom username of your node, it should be human-readable.
-        evmosd init $MONIKER --chain-id=$CHAINID --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd init $MONIKER --chain-id=$CHAINID --home "${HOMEDIRS[((${counter}))]}"
         ((counter++))
     done
+
+    # Input hermes chain configuration data
+    echo -e $HERMES_CHAIN_CONFIG > "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
+    sed -i "s+rpc_addr =.*+rpc_addr = \'http://192.255.${CHAINID_NUM}.2:26657\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
+    sed -i "s+grpc_addr =.*+grpc_addr = \'http://192.255.${CHAINID_NUM}.2:9090\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
+    sed -i "s+id =.*+id = \'${CHAINID}\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
+    sed -i "s+websocket_addr =.*+websocket_addr = \'ws://192.255.${CHAINID_NUM}.2:26657/websocket\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
+    sed -i "s+key_name =.*+key_name = \'${VALIDATORS[0]}\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
 
     # Choose only one of the genesis files to modify
     # Change parameter token denominations to aevmos
@@ -101,11 +135,11 @@ if [ $CMD = "start" ]; then
     counter=0
     while [ $counter -lt $NUM_NODES ]
     do
-        evmosd add-genesis-account "${VALIDATORS[((${counter}))]}"  100000000000000000000000000stake,100000000000000000000000000aevmos --home "${HOMEDIRS[((${counter}))]}"
-        evmosd gentx "${VALIDATORS[((${counter}))]}"   1000000000000000000000aevmos --chain-id $CHAINID --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd add-genesis-account "${VALIDATORS[((${counter}))]}"  100000000000000000000000000stake,100000000000000000000000000aevmos --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd gentx "${VALIDATORS[((${counter}))]}"   1000000000000000000000aevmos --chain-id $CHAINID --home "${HOMEDIRS[((${counter}))]}"
 
-        evmosd collect-gentxs --home "${HOMEDIRS[((${counter}))]}"
-        evmosd validate-genesis --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd collect-gentxs --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd validate-genesis --home "${HOMEDIRS[((${counter}))]}"
         ((counter++))
     done
 
@@ -118,13 +152,14 @@ if [ $CMD = "start" ]; then
     done
 
     # Get a seed so that other nodes can establish p2p connection
-    SEED=$(evmosd tendermint show-node-id --home "${HOMEDIRS[0]}")"@192.255.${CHAINID_NUM}.2:"${PEERING_PORT}
+    SEED=$(./build/evmosd tendermint show-node-id --home "${HOMEDIRS[0]}")"@192.255.${CHAINID_NUM}.2:"${PEERING_PORT}
 
     # Replace seed in all of the node config files
     counter=0
     while [ $counter -lt $NUM_NODES ]
     do
         sed -i "s/seeds = .*/seeds = \"$SEED\"/g" "${HOMEDIRS[((${counter}))]}/config/config.toml"
+        sed -i "s+^laddr = .*tcp://.*\:+laddr = \"tcp://192.255.${CHAINID_NUM}.$(( $counter + 2 ))\:+g" "${HOMEDIRS[((${counter}))]}/config/config.toml"
         ((counter++))
     done
 
@@ -134,7 +169,7 @@ if [ $CMD = "start" ]; then
     do  
         if [ "${!counter}" = "--build" ]; then
             # Build a new docker image
-            docker build -t baton:latest .
+            docker build -t baton:latest --file DockerfileChain .
         elif [ "${!counter}" = "--network" ]; then
             # Create bridge network
             docker network create --subnet "192.255.0.0/16" "baton-net"
@@ -153,7 +188,9 @@ if [ $CMD = "start" ]; then
     done
 elif [ $CMD = "stop" ]; then
     # Usage
-    USAGE="Usage: ./deploy.sh stop <chain name>"
+    USAGE="Usage: ./deploy.sh stop <chain name> [OPTIONS]\n
+    \tOptions:\n
+    \t\t--network \t Remove network configuration (baton-net)"
     NUM_ARGS=2
 
     # Check for help
@@ -195,6 +232,91 @@ elif [ $CMD = "stop" ]; then
     if [ -f "./.memory-${2}.txt" ]; then
         rm "./.memory-${2}.txt"
     fi
+elif [ $CMD = "relayer" ]; then
+    # Usage
+    USAGE="Usage: ./deploy.sh relayer <chain-1-id> <chain-1-port> <chain-2-id> <chain-2-port> <channel-version> [OPTIONS]\n
+    \tOptions:\n
+    \t\t--build \t Build the relayer image"
+    NUM_ARGS=6
+
+    # Check for help
+    # Perform option actions
+    counter=0
+    while [ $counter -le $# ]
+    do  
+        if [ "${!counter}" = "--help" ]; then
+            # Echo the help
+            echo -e $USAGE
+            exit 1
+        fi
+        ((counter++))
+    done
+
+    # Check for correct arguments
+    if [ $# -lt $NUM_ARGS ]; then
+        echo "Invalid arguments"
+        echo -e $USAGE
+        exit 1
+    fi
+
+    # Set variables for channel parameters
+    CA=${2}
+    PA=${3}
+    CB=${4}
+    PB=${5}
+    CV=${6}
+
+    # Hermes configuration header
+    HERMES_CONFIG_HEADER="[global]
+log_level = 'error'
+
+[mode]
+
+[mode.clients]
+enabled = true
+refresh = true
+misbehaviour = true
+
+[mode.connections]
+enabled = true
+
+[mode.channels]
+enabled = true
+
+[mode.packets]
+enabled = true
+clear_interval = 100
+clear_on_start = true
+tx_confirmation = true
+
+[telemetry]
+enabled = true
+host = '127.0.0.1'
+port = 3001\n"
+
+    # Perform option actions
+    counter=$(( $NUM_ARGS + 1 ))
+    while [ $counter -le $# ]
+    do  
+        if [ "${!counter}" = "--build" ]; then
+            # Create bridge network
+            docker build -t baton-relayer:latest --file DockerfileRelayer .
+        fi
+        ((counter++))
+    done
+
+    # Start the relayer container
+    docker container create --name "baton-relayer" --volume "./build/hermes:/hermes/:Z" --network "baton-net" --ip "192.255.255.1" baton-relayer:latest
+    docker container start "baton-relayer"
+
+    # Initialize and start the connection
+    docker exec baton-relayer /bin/bash -c "echo -e \"${HERMES_CONFIG_HEADER}\" > config.toml"
+    docker exec baton-relayer /bin/bash -c "cat hermes/hermes-${CA}/chain.toml >> config.toml"
+    docker exec baton-relayer /bin/bash -c "cat hermes/hermes-${CB}/chain.toml >> config.toml"
+    docker exec baton-relayer /bin/bash -c "hermes --config config.toml keys add --hd-path \"${DERIVATION_PATH}\" --chain evmos_9000-${CA} --key-file \"hermes/hermes-${CA}/rkey.json\""
+    docker exec baton-relayer /bin/bash -c "hermes --config config.toml keys add --hd-path \"${DERIVATION_PATH}\" --chain evmos_9000-${CB} --key-file \"hermes/hermes-${CB}/rkey.json\""
+
+    # hermes --config config.toml create channel --a-chain evmos_9000-5 --b-chain evmos_9000-6 --a-port chat --b-port chat --channel-version chat-1 --new-client-connection
 else
     echo "Invalid command: ${1}"
     echo -e $HELP
