@@ -55,6 +55,11 @@ if [ $CMD = "start" ]; then
     MEMORY="./.memory-${MONIKER}"
     NUM_NODES=${3}
 
+    # Create hermes directory
+    if [ ! -d "./build/hermes" ]; then
+        mkdir ./build/hermes
+    fi
+
     # Template configuration for hermes
     HERMES_CHAIN_CONFIG="[[chains]]\n
         id = 'evmos_9000-6'\n
@@ -96,21 +101,21 @@ if [ $CMD = "start" ]; then
     TMP_GENESIS=${HOMEDIRS[0]}/config/tmp_genesis.json
 
     # Create new info for each node
-    counter=0
+    counter=$(( $NUM_NODES - 1 ))
     rm -rf "./build/hermes/hermes-${CHAINID_NUM}"
     mkdir "./build/hermes/hermes-${CHAINID_NUM}" # Directory that will store key files for this chain (for hermes relayer)
-    while [ $counter -lt $NUM_NODES ]
+    while [ $counter -ge 0 ]
     do
         # Remove old data
         rm -rf "${HOMEDIRS[((${counter}))]}"
 
-        ./build/evmosd config chain-id $CHAINID --home "${HOMEDIRS[((${counter}))]}"
-        ./build/evmosd config node $NODEADDR --home "${HOMEDIRS[((${counter}))]}"
-        ./build/evmosd keys add "${VALIDATORS[((${counter}))]}" --output json --home "${HOMEDIRS[((${counter}))]}" > "./build/hermes/hermes-${CHAINID_NUM}/rkey.json"
+        ./build/evmosd config chain-id $CHAINID --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd config node $NODEADDR --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd keys add "${VALIDATORS[((${counter}))]}" --output json --keyring-backend test --home "${HOMEDIRS[((${counter}))]}" > "./build/hermes/hermes-${CHAINID_NUM}/rkey.json"
 
         # The argument $MONIKER is the custom username of your node, it should be human-readable.
-        ./build/evmosd init $MONIKER --chain-id=$CHAINID --home "${HOMEDIRS[((${counter}))]}"
-        ((counter++))
+        ./build/evmosd init $MONIKER --keyring-backend test --chain-id=$CHAINID --home "${HOMEDIRS[((${counter}))]}"
+        ((counter--))
     done
 
     # Input hermes chain configuration data
@@ -135,11 +140,11 @@ if [ $CMD = "start" ]; then
     counter=0
     while [ $counter -lt $NUM_NODES ]
     do
-        ./build/evmosd add-genesis-account "${VALIDATORS[((${counter}))]}"  100000000000000000000000000stake,100000000000000000000000000aevmos --home "${HOMEDIRS[((${counter}))]}"
-        ./build/evmosd gentx "${VALIDATORS[((${counter}))]}"   1000000000000000000000aevmos --chain-id $CHAINID --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd add-genesis-account "${VALIDATORS[((${counter}))]}"  100000000000000000000000000stake,100000000000000000000000000aevmos --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd gentx "${VALIDATORS[((${counter}))]}"   1000000000000000000000aevmos --chain-id $CHAINID --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
 
-        ./build/evmosd collect-gentxs --home "${HOMEDIRS[((${counter}))]}"
-        ./build/evmosd validate-genesis --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd collect-gentxs --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd validate-genesis --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
         ((counter++))
     done
 
@@ -152,7 +157,7 @@ if [ $CMD = "start" ]; then
     done
 
     # Get a seed so that other nodes can establish p2p connection
-    SEED=$(./build/evmosd tendermint show-node-id --home "${HOMEDIRS[0]}")"@192.255.${CHAINID_NUM}.2:"${PEERING_PORT}
+    SEED=$(./build/evmosd tendermint show-node-id --keyring-backend test --home "${HOMEDIRS[0]}")"@192.255.${CHAINID_NUM}.2:"${PEERING_PORT}
 
     # Replace seed in all of the node config files
     counter=0
@@ -182,7 +187,7 @@ if [ $CMD = "start" ]; then
     counter=0
     while [ $counter -lt $NUM_NODES ]
     do  
-        docker container create --name "${VALIDATORS[((${counter}))]}" --volume "${HOMEDIRS[((${counter}))]}:/evmos" --network "baton-net" --ip "192.255.${CHAINID_NUM}.$(( $counter + 2 ))" baton:latest ./evmosd start --home /evmos
+        docker container create --name "${VALIDATORS[((${counter}))]}" --volume "${HOMEDIRS[((${counter}))]}:/evmos" --network "baton-net" --ip "192.255.${CHAINID_NUM}.$(( $counter + 2 ))" baton:latest ./evmosd start --keyring-backend test --home /evmos
         docker container start "${VALIDATORS[((${counter}))]}" && echo "${VALIDATORS[((${counter}))]}" >> "${MEMORY}.txt"
         ((counter++))
     done
