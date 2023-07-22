@@ -65,7 +65,7 @@ if [ $CMD = "start" ]; then
         id = 'evmos_9000-6'\n
         grpc_addr = 'http://127.0.0.1:9190'\n
         rpc_addr = 'http://localhost:26757'\n
-        websocket_addr = 'ws://127.0.0.1:26757/websocket'\n
+        event_source = { mode = 'push', url = 'ws://127.0.0.1:26657/websocket', batch_delay = '500ms' }\n
         rpc_timeout = '15s'\n
         account_prefix = 'evmos'\n
         key_name = 'devmoon'\n
@@ -123,7 +123,7 @@ if [ $CMD = "start" ]; then
     sed -i "s+rpc_addr =.*+rpc_addr = \'http://192.255.${CHAINID_NUM}.2:26657\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
     sed -i "s+grpc_addr =.*+grpc_addr = \'http://192.255.${CHAINID_NUM}.2:9090\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
     sed -i "s+id =.*+id = \'${CHAINID}\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
-    sed -i "s+websocket_addr =.*+websocket_addr = \'ws://192.255.${CHAINID_NUM}.2:26657/websocket\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
+    sed -i "s+ws://127\.0\.0\.1:26657/websocket+ws://192.255.${CHAINID_NUM}.2:26657/websocket+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
     sed -i "s+key_name =.*+key_name = \'${VALIDATORS[0]}\'+g" "./build/hermes/hermes-${CHAINID_NUM}/chain.toml"
 
     # Choose only one of the genesis files to modify
