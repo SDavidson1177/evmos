@@ -5,7 +5,8 @@ HELP="Usage: ./deploy.sh [COMMAND]\n
 \tCommands:\n
 \t\tstart \t Start a blockchain\n
 \t\tstop \t Stop a blockchain\n
-\t\trelayer \t Start a relayer"
+\t\trelayer \t Start a relayer\n
+\t\trelayer-stop \t Stop a relayer"
 
 # Make sure a command is given
 if [ $# -lt 1 ]; then
@@ -92,6 +93,9 @@ if [ $CMD = "start" ]; then
         ((counter++))
     done
 
+    # Evmos command for creating a validator
+    VALIDATOR_TX="./evmosd tx staking create-validator --amount=1000000000000000000000aevmos --chain-id $CHAINID --pubkey=\"\$(./evmosd tendermint show-validator --keyring-backend test --home /evmos --node NODEADDR)\" --moniker=$MONIKER --commission-rate=\"0.1\" --commission-max-rate=\"0.20\" --commission-max-change-rate=\"0.01\" --min-self-delegation=\"1\" --gas=\"auto\" FROM "
+
     echo "Validators: ${VALIDATORS[*]}"
     echo "Home Directories: ${HOMEDIRS[*]}"
 
@@ -140,7 +144,7 @@ if [ $CMD = "start" ]; then
     counter=0
     while [ $counter -lt $NUM_NODES ]
     do
-        ./build/evmosd add-genesis-account "${VALIDATORS[((${counter}))]}"  100000000000000000000000000stake,100000000000000000000000000aevmos --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
+        ./build/evmosd add-genesis-account "${VALIDATORS[((${counter}))]}"  "100000000000000000000000000stake,${NUM_NODES}00000000000000000000000000aevmos" --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
         ./build/evmosd gentx "${VALIDATORS[((${counter}))]}"   1000000000000000000000aevmos --chain-id $CHAINID --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
 
         ./build/evmosd collect-gentxs --keyring-backend test --home "${HOMEDIRS[((${counter}))]}"
@@ -191,6 +195,53 @@ if [ $CMD = "start" ]; then
         docker container start "${VALIDATORS[((${counter}))]}" && echo "${VALIDATORS[((${counter}))]}" >> "${MEMORY}.txt"
         ((counter++))
     done
+
+    counter=0
+    while [ $counter -lt $NUM_NODES ]
+    do  
+        # Add a script to the container that will allow this node to become a validator
+        docker exec "${VALIDATORS[((${counter}))]}" /bin/bash -c "echo \"#!/bin/bash\" > add_validator.sh" 
+        docker exec "${VALIDATORS[((${counter}))]}" /bin/bash -c "echo -e ${VALIDATOR_TX} >> add_validator.sh"
+        docker exec "${VALIDATORS[((${counter}))]}" chmod 777 add_validator.sh
+        docker exec "${VALIDATORS[((${counter}))]}" sed -i "s/NODEADDR/192.255.${CHAINID_NUM}.$(( $counter + 2 )):26657/g" add_validator.sh
+        docker exec "${VALIDATORS[((${counter}))]}" sed -i 's=FROM=\\=g' add_validator.sh
+        docker exec "${VALIDATORS[((${counter}))]}" sed -i 's="=\\"=g' add_validator.sh
+        docker exec "${VALIDATORS[((${counter}))]}" sed -i 's=\\\\=\\=g' add_validator.sh
+        docker exec "${VALIDATORS[((${counter}))]}" sed -i 's={=\\{=g' add_validator.sh
+        docker exec "${VALIDATORS[((${counter}))]}" sed -i 's=}=\\}=g' add_validator.sh
+        docker exec "${VALIDATORS[((${counter}))]}" /bin/bash -c "echo \"--home /evmos --node tcp://192.255.${CHAINID_NUM}.$(( $counter + 2 )):26657 --keyring-backend test --fees 500000000000000aevmos --from=\$(./evmosd keys show ${VALIDATORS[((${counter}))]} --home /evmos --keyring-backend test -a) -y\" >> add_validator.sh"
+        ((counter++))
+    done
+
+    # Create script to transfer 50000000000000000000000000aevmos between node accounts
+    docker exec "${VALIDATORS[0]}" /bin/bash -c "echo \"#!/bin/bash\" > transfer_funds.sh"
+    docker exec "${VALIDATORS[0]}" /bin/bash -c "chmod 777 transfer_funds.sh"
+    counter=1
+    while [ $counter -lt $NUM_NODES ]
+    do
+        OTHER_ADDRESS=$(docker exec ${VALIDATORS[((${counter}))]} ./evmosd keys show ${VALIDATORS[((${counter}))]} --home /evmos --keyring-backend test -a)
+        docker exec "${VALIDATORS[0]}" /bin/bash -c "echo \"./evmosd tx bank send \$(./evmosd keys show ${VALIDATORS[0]} --home /evmos --keyring-backend test -a) ${OTHER_ADDRESS} 50000000000000000000000000aevmos --from \$(./evmosd keys show ${VALIDATORS[0]} --home /evmos --keyring-backend test -a) --home /evmos --keyring-backend test --node tcp://192.255.${CHAINID_NUM}.2:26657 --fees 500000000000000aevmos -y\" >> transfer_funds.sh"
+        docker exec "${VALIDATORS[0]}" /bin/bash -c "echo sleep 4 >> transfer_funds.sh"
+        ((counter++))
+    done
+
+    echo "Transfering funds to validators..."
+    sleep 3
+
+    # Send funds to each node so that every node can become a validator
+    docker exec "${VALIDATORS[0]}" ./transfer_funds.sh
+
+    # Register validators
+    echo "Registering validators..."
+    sleep 3
+
+    counter=1
+    while [ $counter -lt $NUM_NODES ]
+    do
+        docker exec "${VALIDATORS[((${counter}))]}" ./add_validator.sh
+        # sleep 3
+        ((counter++))
+    done    
 elif [ $CMD = "stop" ]; then
     # Usage
     USAGE="Usage: ./deploy.sh stop <chain name> [OPTIONS]\n
@@ -265,11 +316,14 @@ elif [ $CMD = "relayer" ]; then
     fi
 
     # Set variables for channel parameters
-    CA=${2}
-    PA=${3}
+    CA=${2} # Chain A
+    PA=${3} # Port A
     CB=${4}
     PB=${5}
     CV=${6}
+
+    # Set relayer name
+    RELAYER_NAME="baton-relayer-${CA}-${CB}"
 
     # Hermes configuration header
     HERMES_CONFIG_HEADER="[global]
@@ -311,17 +365,43 @@ port = 3001\n"
     done
 
     # Start the relayer container
-    docker container create --name "baton-relayer" --volume "./build/hermes:/hermes/:Z" --network "baton-net" --ip "192.255.255.1" baton-relayer:latest
-    docker container start "baton-relayer"
+    docker container create --name "${RELAYER_NAME}" --volume "./build/hermes:/hermes/:Z" --network "baton-net" --ip "192.255.255.$(ls | egrep '\.stop-' | wc -l)" baton-relayer:latest
+    docker container start "${RELAYER_NAME}"
 
     # Initialize and start the connection
-    docker exec baton-relayer /bin/bash -c "echo -e \"${HERMES_CONFIG_HEADER}\" > config.toml"
-    docker exec baton-relayer /bin/bash -c "cat hermes/hermes-${CA}/chain.toml >> config.toml"
-    docker exec baton-relayer /bin/bash -c "cat hermes/hermes-${CB}/chain.toml >> config.toml"
-    docker exec baton-relayer /bin/bash -c "hermes --config config.toml keys add --hd-path \"${DERIVATION_PATH}\" --chain evmos_9000-${CA} --key-file \"hermes/hermes-${CA}/rkey.json\""
-    docker exec baton-relayer /bin/bash -c "hermes --config config.toml keys add --hd-path \"${DERIVATION_PATH}\" --chain evmos_9000-${CB} --key-file \"hermes/hermes-${CB}/rkey.json\""
+    docker exec "${RELAYER_NAME}" /bin/bash -c "echo -e \"${HERMES_CONFIG_HEADER}\" > config.toml"
+    docker exec "${RELAYER_NAME}" /bin/bash -c "cat hermes/hermes-${CA}/chain.toml >> config.toml"
+    docker exec "${RELAYER_NAME}" /bin/bash -c "cat hermes/hermes-${CB}/chain.toml >> config.toml"
+    docker exec "${RELAYER_NAME}" /bin/bash -c "hermes --config config.toml keys add --hd-path \"${DERIVATION_PATH}\" --chain evmos_9000-${CA} --key-file \"hermes/hermes-${CA}/rkey.json\""
+    docker exec "${RELAYER_NAME}" /bin/bash -c "hermes --config config.toml keys add --hd-path \"${DERIVATION_PATH}\" --chain evmos_9000-${CB} --key-file \"hermes/hermes-${CB}/rkey.json\""
+
+    # Save stop command in file
+    echo "docker container stop ${RELAYER_NAME} && docker container remove ${RELAYER_NAME}" > ".stop-${CA}-${CB}.sh"
+    chmod 755 ".stop-${CA}-${CB}.sh"
 
     # hermes --config config.toml create channel --a-chain evmos_9000-5 --b-chain evmos_9000-6 --a-port chat --b-port chat --channel-version chat-1 --new-client-connection
+elif [ $CMD = "relayer-stop" ]; then
+    # Usage
+    USAGE="Usage: ./deploy.sh relayer-stop <chain-1-id> <chain-2-id>"
+    NUM_ARGS=3
+
+    # Check for correct arguments
+    if [ $# -lt $NUM_ARGS ]; then
+        echo "Invalid arguments"
+        echo -e $USAGE
+        exit 1
+    fi
+
+    # Stop the relayer container
+    if [ -f ".stop-${2}-${3}.sh" ]; then
+        "./.stop-${2}-${3}.sh"
+        rm ".stop-${2}-${3}.sh"
+    elif [ -f ".stop-${2}-${3}.sh" ]; then
+        "./.stop-${3}-${2}.sh"
+        rm ".stop-${3}-${2}.sh"
+    else
+        echo "Relayer not found"
+    fi
 else
     echo "Invalid command: ${1}"
     echo -e $HELP
