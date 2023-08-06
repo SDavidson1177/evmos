@@ -216,12 +216,34 @@ if [ $CMD = "start" ]; then
     # Create script to transfer 50000000000000000000000000aevmos between node accounts
     docker exec "${VALIDATORS[0]}" /bin/bash -c "echo \"#!/bin/bash\" > transfer_funds.sh"
     docker exec "${VALIDATORS[0]}" /bin/bash -c "chmod 777 transfer_funds.sh"
+    # This script will wait for a new block to be committed to the blockchain, and will proceed afterwards
+    # This prevents sequence number clashing from transactions
+    NEW_BLOCK_SCRIPT="#!/bin/bash
+counter=0
+while [ \$counter -lt 1 ]
+do
+        end_loop=0
+        start_data=\$(./evmosd query block --home /evmos --node tcp://192.255.${CHAINID_NUM}.2:26657)
+        while [ \$end_loop -eq 0 ]
+        do
+                sleep 1
+                block_data=\$(./evmosd query block --home /evmos --node tcp://192.255.${CHAINID_NUM}.2:26657)
+                if [ \"\$start_data\" = \"\$block_data\" ]; then
+                        echo 'Waiting for another block...'
+                else
+                        echo 'Submitting transaction'
+                        end_loop=1
+                fi
+        done
+        ((counter++))
+done"
+
     counter=1
     while [ $counter -lt $NUM_NODES ]
     do
         OTHER_ADDRESS=$(docker exec ${VALIDATORS[((${counter}))]} ./evmosd keys show ${VALIDATORS[((${counter}))]} --home /evmos --keyring-backend test -a)
         docker exec "${VALIDATORS[0]}" /bin/bash -c "echo \"./evmosd tx bank send \$(./evmosd keys show ${VALIDATORS[0]} --home /evmos --keyring-backend test -a) ${OTHER_ADDRESS} 50000000000000000000000000aevmos --from \$(./evmosd keys show ${VALIDATORS[0]} --home /evmos --keyring-backend test -a) --home /evmos --keyring-backend test --node tcp://192.255.${CHAINID_NUM}.2:26657 --fees 500000000000000aevmos -y\" >> transfer_funds.sh"
-        docker exec "${VALIDATORS[0]}" /bin/bash -c "echo sleep 4 >> transfer_funds.sh"
+        docker exec "${VALIDATORS[0]}" /bin/bash -c "echo -e '${NEW_BLOCK_SCRIPT}' >> transfer_funds.sh"
         ((counter++))
     done
 
